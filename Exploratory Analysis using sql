@@ -7,85 +7,83 @@ select Location , date , total_cases , total_deaths , population
 from covid_deaths
 order by Location , date ;
 
-#to find the percentage of total deaths  for each location
+--to find the percentage of total deaths  for each location
 
-select Location, date, total_cases, total_deaths , Round((total_deaths / total_cases)* 100 , 2)
+select Location, date, total_cases, total_deaths , Round((total_deaths / total_cases)* 100 , 2) as death_rate
 from covid_deaths
 order by Location , date;
 
-#shows the liklihood of dying if you get infected with covid
+--shows the liklihood of dying if you got infected with covid in your country
 
-select Location , date , total_cases , total_deaths , Round((total_deaths / total_cases) * 100 , 2)
+select Location , date , total_cases , total_deaths , Round((total_deaths / total_cases) * 100 , 2) as death_rate
 from covid_deaths
 where Location = "India"
 order by date;
 
-#shows what percentage of people got covid
+--shows what percentage of people got infected with covid
 select Location , date , total_cases , population , Round((total_cases / population) * 100 , 2) as infection_percentage
 from covid_deaths
-where Location = 'India'
 order by date;
 
-#countries with highest infection rate based on population
+--countries with highest infection rate based on population
 select Location , population , Max(total_cases) as maximum_cases , Max((total_cases/population) * 100) as infection_percentage
 from covid_deaths
 group by Location
 order by infection_percentage;
 
-#countries with highest death count per location
-select Location , Max(cast(total_deaths as int)) as maximum_deaths # total_deaths is stored as a varchar hence changing it to int
+--countries with highest death count per location
+select Location , Max(cast(total_deaths as unsigned)) as maximum_deaths # total_deaths is stored as a varchar hence changing it to int
 from covid_deaths 
 where continent is not null # since some locations are having continents has null value 
 group by Location
 order by maximum_deaths desc;
 
-#maximum death count by continents
-select continent , Max(cast(total_deaths as int)) as maximum_deaths
+--maximum death count by continents
+select continent , Max(cast(total_deaths as unsigned)) as maximum_deaths
 from covid_deaths
-where continents is not null
-group by continents
+where continent is not null
+group by continent
 order by maximum_deaths desc;
 
-#total number of new cases and deaths by date
-select date , Max(new_cases) as total_newcase , Max(cast(new_deaths as int)) as total_newdeaths , sum(new_cases)/sum(cast(new_deaths as int)) * 100 as death_percentage
+--total number of new cases and deaths by continent and its rate by date
+select continent , sum(new_cases) as total_newcases , sum(cast(new_deaths as unsigned)) as total_newdeaths , sum(cast(new_deaths as unsigned))/sum(new_cases)  * 100 as new_deathratepercentage
 from covid_deaths
-where continents is not null
+where continent is not null
 group by date;
 
-#global numbers
-#total number of new cases and deaths in the world and its rate
-select Max(new_cases) as total_newcase , Max(cast(new_deaths as int)) as total_newdeaths , Sum(new_cases) / Sum(cast(new_deaths as int)) * 100 as death_percentage
+--global numbers
+--max of new cases and deaths in the world
+select max(new_cases) as max_newcase , max(cast(new_deaths as unsigned)) as total_newdeaths
 from covid_deaths
-where continents is not null;
+where continent is not null;
 
-#total population vs vaccination per day
-select d.continent , d.Location , d.date , d.population , v.new_vaccination 
+--total population vs vaccination per day
+select d.continent , d.Location , d.date , d.population , v.new_vaccinations
 from covid_deaths d
 join covid_vaccinations v on d.Location = v.Location
 and d.date = v.date
-where continents is not null
+where d.continent is not null
 order by d.Location , d.date;
 
-#creating a cte
-#total population vs vaccination per day the rolling people vaccinated and also to find the rate
-with popvsvac (continent , location , date , population , new_vaccination)
+--creating a cte
+--total population vs vaccination per day the rolling people vaccinated and also to find the rate
+with popvsvac (continent , location , date , population , new_vaccination , rolling_peoplevaccinated)
 as
 (
-select d.continent , d.location , d.date, d.population , v.new_vaccination , 
-sum(convert(v.new_vaccinations , int)) over (partition by d.location order by d.location , d.date) as rolling_peoplevaccinated
+select d.continent , d.location , d.date, d.population , v.new_vaccinations , 
+sum(cast(v.new_vaccinations as unsigned) ) over (partition by d.location order by d.location , d.date) as rolling_peoplevaccinated
 from covid_deaths d
 join covid_vaccinations v on d.Location = v.Location 
 and d.date = v.date
-where continents is not null
+where d.continent is not null
 order by d.Location , d.date
 )
-select * , (rolling_peoplevaccinated/population) * 100
+select * , (rolling_peoplevaccinated/population) * 100 as rolling_peoplevaccinated_rate
 from popvsvac;
 
-#total population vs max vaccination per location , also find the rolling people vaccinated and the rate
+--using Temp Table to perform Calculation on Partition By in previous query
 
-
-#creating a temporary table
+drop table if exists percentpopulation_vaccinated
 create temporary table percentpopulation_vaccinated
 (
 continent varchar(255),
@@ -98,35 +96,35 @@ rolling_peoplevaccinated numeric
 
 insert into percentpopulation_vaccinated
 (
-select d.continent , d.location , d.date, d.population , v.new_vaccination , 
-sum(convert(v.new_vaccinations , int)) over (partition by d.location order by d.location , d.date) as rolling_peoplevaccinated
+select d.continent , d.location , d.date, d.population , v.new_vaccinations , 
+sum(cast(v.new_vaccinations as unsigned)) over (partition by d.location order by d.location , d.date) as rolling_peoplevaccinated
 from covid_deaths d
 join covid_vaccinations v on d.Location = v.Location 
 and d.date = v.date
-where continents is not null
+where d.continent is not null
 order by d.Location , d.date
 );
 
 select * , (rolling_peoplevaccinated/population) * 100 as rolling_peoplevacinnatedrate
 from percentpopulation_vaccinated;
 
-#creating a view for population vaccinated
+--creating a view for population vaccinated
 
 create or replace view v_populationvaccinated as
 select d.continent , d.location , d.date, d.population , v.new_vaccination , 
-sum(convert(v.new_vaccinations , int)) over (partition by d.location order by d.location , d.date) as rolling_peoplevaccinated
+sum(cast(v.new_vaccinations as unsigned)) over (partition by d.location order by d.location , d.date) as rolling_peoplevaccinated
 from covid_deaths d
 join covid_vaccinations v on d.Location = v.Location 
 and d.date = v.date
-where continents is not null
+where d.continent is not null
 order by d.Location , d.date;
 
-#creating a view for global data
+--creating a view for global data
 
 create or replace view v_global as
-select Max(new_cases) as total_newcase , Max(cast(new_deaths as int)) as total_newdeaths , Sum(new_cases) / Sum(cast(new_deaths as int)) * 100 as death_percentage
+select sum(new_cases) as total_newcase , sum(cast(new_deaths as unsigned)) as total_newdeaths , Sum(new_cases) / Sum(cast(new_deaths as unsigned)) * 100 as death_percentage
 from covid_deaths
-where continents is not null;
+where continent is not null;
 
 
 
