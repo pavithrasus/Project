@@ -36,6 +36,83 @@ set propertysplitcity = substring(propertyaddress , locate(',' , propertyaddress
 
 select * from nashville;
 
+--splitting owner address 
+
+select owneraddress from nashville;
+select substring(owneraddress , 1 , locate(',' , owneraddress ) -1) as address ,
+substring(owneraddress , locate(',' , owneraddress) + 1 , locate(',' , owneraddress)-4 ) as city ,
+ substring_index(owneraddress , ',' ,  -1) as state
+from nashville;
+
+alter table nashville
+add ownersplitaddress varchar(255);
+
+update nashville 
+set ownersplitaddress = substring(owneraddress , 1 , locate(',' , owneraddress ) -1) ;
+
+alter table nashville
+add ownersplitcity varchar(255);
+
+update nashville 
+set ownersplitcity = substring(owneraddress , locate(',' , owneraddress) + 1 , locate(',' , owneraddress)-4 ) ;
+
+alter table nashville
+add ownersplitstate varchar(255);
+
+update nashville 
+set ownersplitstate = substring_index(owneraddress , ',' ,  -1) ;
+
+select * from nashville;
+
+
+-- changing y to yes and n to no
+
+select distinct(soldasvacant) , count(soldasvacant)
+from nashville
+group by soldasvacant
+order by soldasvacant;
+
+select soldasvacant,
+case when soldasvacant = 'y' then 'yes'
+when soldasvacant = 'n' then 'no'
+else soldasvacant
+end as soldasvacant
+from nashville;
+
+update nashville
+set soldasvacant = case when soldasvacant = 'y' then 'yes'
+when soldasvacant = 'n' then 'no'
+else soldasvacant
+end ;
+
+--removing duplicates
+
+with rownumcte as(
+select * ,
+row_number() over (
+partition by ParcelID,
+Propertyaddress ,
+saleprice,
+saledate,
+legalreference
+order by uniqueid
+) as row_num
+from nashville 
+) 
+delete from 
+from rownumcte
+where row_num > 1;
+
+
+--deleting unused column
+
+alter table nashville
+drop column propertyaddress ;
+
+alter table nashville
+drop column owneraddress;
+
+select * from nashville;
 
 
 
